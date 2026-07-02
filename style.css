@@ -1,0 +1,98 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  background: #111217;
+  color: #d0d0d0;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  padding: 2rem 4rem;
+  border-bottom: 1px solid #22252b;
+}
+header h1 {
+  margin: 0 0 .5rem;
+  font-size: 1.6rem;
+  color: #fff;
+  font-weight: 600;
+}
+header p {
+  margin: .4rem 0 0;
+  max-width: 64ch;
+  line-height: 1.7;
+  color: #888;
+  font-size: .95rem;
+}
+header a { color: #6794a7; text-decoration: none; }
+header a:hover { text-decoration: underline; }
+
+.howto {
+  background: #1a1c23;
+  border: 1px solid #22252b;
+  border-radius: 4px;
+  padding: .7rem 1.2rem;
+  font-family: ui-monospace, monospace;
+  font-size: .85rem;
+  color: #aaa;
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+section {
+  padding: 2rem 4rem;
+  border-bottom: 1px solid #1a1c23;
+}
+section:last-of-type { border-bottom: none; }
+section h2 {
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: #6794a7;
+  margin: 0 0 1.5rem;
+  font-weight: 600;
+}
+
+.grid {
+  columns: 2;
+  column-gap: 1.25rem;
+}
+.card {
+  break-inside: avoid;
+  margin-bottom: 1.25rem;
+  border: 1px solid #22252b;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #1a1c23;
+}
+.card-title {
+  padding: .5rem 1rem;
+  font-size: .8rem;
+  color: #9ba3ad;
+  background: #16181f;
+  border-bottom: 1px solid #22252b;
+}
+.card img {
+  width: 100%;
+  display: block;
+}
+.missing {
+  padding: 2rem;
+  color: #555;
+  font-size: .85rem;
+  font-style: italic;
+  text-align: center;
+}
+
+footer {
+  padding: 1.5rem 4rem 2rem;
+  color: #555;
+  font-size: .8rem;
+  border-top: 1px solid #1a1c23;
+}
+
+@media (max-width: 800px) {
+  header, section, footer { padding: 1.5rem; }
+  .grid { columns: 1; }
+}

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eriksperfmon - Dashboard Gallery</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>eriksperfmon</h1>
+  <p>
+    Grafana dashboards for
+    <a href="https://github.com/erikdarlingdata/PerformanceMonitor">Erik Darling's PerformanceMonitor</a>
+    (Full Edition). Screenshots from a demo running SQL Server 2017-2025 with a
+    synthetic workload: wait stats, blocking pairs, deadlocks, memory pressure etc.
+  </p>
+  <p>Run the full demo locally (Get it from GitHub - <a href="https://github.com/argpna/eriksperfmon">argpna/eriksperfmon</a>):</p>
+  <div class="howto">git clone git@github.com:argpna/eriksperfmon<br>cd eriksperfmon<br>cp .env.example .env &amp;&amp; docker compose up -d</div>
+</header>
+
+<section>
+<h2>PerfMon</h2>
+<div class="grid"><div class="card"><div class="card-title">Fleet Overview</div><img src="screenshots/perfmon-fleet.png" alt="Fleet Overview" loading="lazy"></div>
+<div class="card"><div class="card-title">Instance Overview</div><img src="screenshots/perfmon-instance.png" alt="Instance Overview" loading="lazy"></div>
+<div class="card"><div class="card-title">Queries</div><img src="screenshots/perfmon-queries.png" alt="Queries" loading="lazy"></div>
+<div class="card"><div class="card-title">Resource Metrics</div><img src="screenshots/perfmon-waits.png" alt="Resource Metrics" loading="lazy"></div>
+<div class="card"><div class="card-title">Locking</div><img src="screenshots/perfmon-blocking.png" alt="Locking" loading="lazy"></div>
+<div class="card"><div class="card-title">Memory</div><img src="screenshots/perfmon-memory.png" alt="Memory" loading="lazy"></div>
+<div class="card"><div class="card-title">Collection Health</div><img src="screenshots/perfmon-collection.png" alt="Collection Health" loading="lazy"></div>
+<div class="card"><div class="card-title">System Events</div><img src="screenshots/perfmon-system-events.png" alt="System Events" loading="lazy"></div>
+</div>
+</section>
+<section>
+<h2>FinOps</h2>
+<div class="grid"><div class="card"><div class="card-title">Recommendations</div><img src="screenshots/finops-recommendations.png" alt="Recommendations" loading="lazy"></div>
+<div class="card"><div class="card-title">Utilization</div><img src="screenshots/finops-utilization.png" alt="Utilization" loading="lazy"></div>
+<div class="card"><div class="card-title">Database Resources</div><img src="screenshots/finops-database-resources.png" alt="Database Resources" loading="lazy"></div>
+<div class="card"><div class="card-title">Storage Growth</div><img src="screenshots/finops-storage-growth.png" alt="Storage Growth" loading="lazy"></div>
+<div class="card"><div class="card-title">Object Sizes & Growth</div><img src="screenshots/finops-object-sizes.png" alt="Object Sizes & Growth" loading="lazy"></div>
+<div class="card"><div class="card-title">Index Usage</div><img src="screenshots/finops-index-usage.png" alt="Index Usage" loading="lazy"></div>
+<div class="card"><div class="card-title">Locking & Contention</div><img src="screenshots/finops-locking.png" alt="Locking & Contention" loading="lazy"></div>
+<div class="card"><div class="card-title">Database Sizes</div><img src="screenshots/finops-database-sizes.png" alt="Database Sizes" loading="lazy"></div>
+<div class="card"><div class="card-title">Index Analysis</div><img src="screenshots/finops-index-analysis.png" alt="Index Analysis" loading="lazy"></div>
+<div class="card"><div class="card-title">Optimization</div><img src="screenshots/finops-optimization.png" alt="Optimization" loading="lazy"></div>
+<div class="card"><div class="card-title">High Impact</div><img src="screenshots/finops-high-impact.png" alt="High Impact" loading="lazy"></div>
+<div class="card"><div class="card-title">Application Connections</div><img src="screenshots/finops-application-connections.png" alt="Application Connections" loading="lazy"></div>
+<div class="card"><div class="card-title">Server Inventory</div><img src="screenshots/finops-server-inventory.png" alt="Server Inventory" loading="lazy"></div>
+</div>
+</section>
+<section>
+<h2>Alerting</h2>
+<div class="grid"><div class="card"><div class="card-title">Alerting Rules</div><img src="screenshots/page-alert-rules.png" alt="Alerting Rules" loading="lazy"></div>
+<div class="card"><div class="card-title">Active Notifications</div><img src="screenshots/page-active-notifications.png" alt="Active Notifications" loading="lazy"></div>
+<div class="card"><div class="card-title">Contact Points</div><img src="screenshots/page-contact-points.png" alt="Contact Points" loading="lazy"></div>
+<div class="card"><div class="card-title">Notification Policies</div><img src="screenshots/page-notification-policies.png" alt="Notification Policies" loading="lazy"></div>
+</div>
+</section>
+
+
+<footer>Generated 2026-07-01 from a live demo run.</footer>
+</body>
+</html>
