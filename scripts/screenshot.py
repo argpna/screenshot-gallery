@@ -20,6 +20,7 @@ Environment:
 import base64
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -100,14 +101,64 @@ def wait_for_grafana(timeout: int = 180) -> None:
     sys.exit("Grafana not ready after 180s")
 
 
+def _is_v2_dashboard(dash: dict) -> bool:
+    """True for a dashboard.grafana.app/v2* resource (kind/spec shape), False for
+    classic v1 dashboard JSON. Mirrors verify-panels.py's helper of the same name."""
+    return dash.get("kind") == "Dashboard" and "spec" in dash
+
+
+def _v2_grid_height(spec: dict) -> int | None:
+    """Render height for a schema-v2 AutoGridLayout dashboard (e.g. the fleet card
+    grid). Unlike classic panels, AutoGridLayout items have no fixed gridPos - the
+    row count depends on how many values the repeated variable resolves to, which
+    for a DatasourceVariable is only known by querying live datasources. Returns
+    None if the dashboard isn't an AutoGridLayout (falls back to classic parsing).
+    """
+    layout = spec.get("layout", {})
+    if layout.get("kind") != "AutoGridLayout":
+        return None
+    lspec = layout.get("spec", {})
+    items = lspec.get("items", [])
+    if not items:
+        return None
+
+    count = 1
+    var_name = items[0].get("spec", {}).get("repeat", {}).get("value")
+    if var_name:
+        variables = {
+            v["spec"]["name"]: v["spec"]
+            for v in spec.get("variables", [])
+            if "spec" in v and "name" in v.get("spec", {})
+        }
+        var = variables.get(var_name)
+        if var and var.get("kind", var.get("type")) == "DatasourceVariable":
+            m = re.match(r"^/(.*)/([a-z]*)$", var.get("regex") or "")
+            pattern = m.group(1) if m else var.get("regex")
+            rx = re.compile(pattern) if pattern else None
+            names = [ds["name"] for ds in _get("/api/datasources")]
+            count = sum(1 for n in names if not rx or rx.search(n)) or 1
+
+    columns = lspec.get("maxColumnCount") or 1
+    row_height = lspec.get("rowHeight", _GRID_PX)
+    rows = -(-count // columns)  # ceil
+    return rows * row_height + _MARGIN_PX
+
+
 def dashboard_render_height(uid: str) -> int:
     """Return the pixel height needed to capture the full dashboard.
 
-    Queries the dashboard JSON, finds the bottom edge of the lowest panel and
+    For classic v1 dashboards, finds the bottom edge of the lowest panel and
     converts to pixels using Grafana's grid unit size plus a top-margin buffer.
+    For schema-v2 AutoGridLayout dashboards (no fixed panel positions), computes
+    row count from the repeated variable's resolved value count instead.
     """
     try:
-        panels = _get(f"/api/dashboards/uid/{uid}")["dashboard"].get("panels", [])
+        dash = _get(f"/api/dashboards/uid/{uid}").get("dashboard", {})
+        if _is_v2_dashboard(dash):
+            height = _v2_grid_height(dash["spec"])
+            if height is not None:
+                return max(height, 600)
+        panels = dash.get("panels", [])
         max_grid = max(
             (p["gridPos"]["y"] + p["gridPos"]["h"] for p in panels if "gridPos" in p),
             default=0,
@@ -200,7 +251,7 @@ def write_index_html(results: list[tuple[str, str, str, bool]], stamp: str) -> N
     synthetic workload: wait stats, blocking pairs, deadlocks, memory pressure etc.
   </p>
   <p>Run the full demo locally (Get it from GitHub - <a href="https://github.com/argpna/eriksperfmon">argpna/eriksperfmon</a>):</p>
-  <div class="howto">git clone git@github.com:argpna/eriksperfmon<br>cd eriksperfmon<br>cp .env.example .env &amp;&amp; docker compose up -d</div>
+  <div class="howto">git clone https://github.com/argpna/eriksperfmon.git<br>cd eriksperfmon<br>cp .env.example .env &amp;&amp; docker compose up -d</div>
 </header>
 
 {sections}
