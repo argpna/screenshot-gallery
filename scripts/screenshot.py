@@ -1,87 +1,73 @@
 #!/usr/bin/env python3
-"""Screenshot all dashboards and build a static GitHub Pages gallery.
+"""Screenshot a project's dashboards and build its static GitHub Pages gallery.
 
-Calls Grafana's /render/d/{uid} endpoint for each dashboard, then writes
-index.html & screenshots/ into PAGES_DIR.
+Calls Grafana's /render/d/{uid} endpoint for each dashboard in the project's manifest, then writes
+projects/<project>/index.html and projects/<project>/screenshots/ - then regenerates the repo-root
+landing page from every projects/*/manifest.py present.
 
-The rendered height is computed per dashboard from the Grafana API so the full
-scrollable dashboard is captured regardless of how many panels it contains.
-
-Use capture.sh in this repo to orchestrate the full flow. Direct usage:
-    GRAFANA_ADMIN_PASSWORD=GrafanaAdmin1 python3 scripts/screenshot.py
+Usage:
+    GRAFANA_ADMIN_PASSWORD=... python3 scripts/screenshot.py --project darlingperfmon
 
 Environment:
     GRAFANA_URL              default: http://localhost:3000
     GRAFANA_ADMIN_PASSWORD   required
-    SCREENSHOT_DS            default: perfmon-ds-sql2022 ($instance var value)
-    PAGES_DIR                default: parent of this script
 """
 
+import argparse
 import base64
+import importlib.util
 import json
 import os
 import re
+import struct
 import sys
 import time
+import types
 import urllib.error
 import urllib.request
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+PROJECTS_DIR = REPO_ROOT / "projects"
+
 GRAFANA = os.environ.get("GRAFANA_URL", "http://localhost:3000").rstrip("/")
 ADMIN_PASS = os.environ.get("GRAFANA_ADMIN_PASSWORD", "")
-PRIMARY_DS = os.environ.get("SCREENSHOT_DS", "perfmon-ds-sql2022")
-PAGES_DIR = Path(os.environ.get("PAGES_DIR", Path(__file__).resolve().parent.parent))
-_UID_FILTER = {u.strip() for u in os.environ.get("SCREENSHOT_UIDS", "").split(",") if u.strip()}
 TIME_FROM = os.environ.get("SCREENSHOT_FROM", "now-1h")
 TIME_TO = os.environ.get("SCREENSHOT_TO", "now")
+SERVER_OVERRIDE = os.environ.get("SCREENSHOT_SERVER", "")
+THEME = os.environ.get("SCREENSHOT_THEME", "dark")
 
-_AUTH = "Basic " + base64.b64encode(f"admin:{ADMIN_PASS}".encode()).decode()
+PREFERENCE_THEMES = {"tron", "desertbloom", "gildedgrove", "sapphiredusk", "gloom"}
 
 RENDER_WIDTH = 1600
 _GRID_PX = 40
 _MARGIN_PX = 50
 
-# Manually captured pages.
-# Drop the PNG into screenshots/ and it will appear in the gallery.
-# (uid, title, group)
-PAGE_SCREENSHOTS = [
-    ("page-alert-rules",           "Alerting Rules",        "Alerting"),
-    ("page-active-notifications",  "Active Notifications",  "Alerting"),
-    ("page-contact-points",        "Contact Points",        "Alerting"),
-    ("page-notification-policies", "Notification Policies", "Alerting"),
-]
 
-DASHBOARDS = [
-    ("perfmon-fleet",                  "Fleet Overview",          "PerfMon", False),
-    ("perfmon-instance",               "Instance Overview",       "PerfMon", True),
-    ("perfmon-queries",                "Queries",                 "PerfMon", True),
-    ("perfmon-waits",                  "Resource Metrics",        "PerfMon", True),
-    ("perfmon-blocking",               "Locking",                 "PerfMon", True),
-    ("perfmon-memory",                 "Memory",                  "PerfMon", True),
-    ("perfmon-collection",             "Collection Health",       "PerfMon", True),
-    ("perfmon-system-events",          "System Events",           "PerfMon", True),
-    ("finops-recommendations",         "Recommendations",         "FinOps",  True),
-    ("finops-utilization",             "Utilization",             "FinOps",  True),
-    ("finops-database-resources",      "Database Resources",      "FinOps",  True),
-    ("finops-storage-growth",          "Storage Growth",          "FinOps",  True),
-    ("finops-object-sizes",            "Object Sizes & Growth",   "FinOps",  True),
-    ("finops-index-usage",             "Index Usage",             "FinOps",  True),
-    ("finops-locking",                 "Locking & Contention",    "FinOps",  True),
-    ("finops-database-sizes",          "Database Sizes",          "FinOps",  True),
-    ("finops-index-analysis",          "Index Analysis",          "FinOps",  True),
-    ("finops-optimization",            "Optimization",            "FinOps",  True),
-    ("finops-high-impact",             "High Impact",             "FinOps",  True),
-    ("finops-application-connections", "Application Connections", "FinOps",  True),
-    ("finops-server-inventory",        "Server Inventory",        "FinOps",  True),
-]
+def _auth_header() -> str:
+    return "Basic " + base64.b64encode(f"admin:{ADMIN_PASS}".encode()).decode()
+
+
+def load_manifest(project: str) -> types.ModuleType:
+    path = PROJECTS_DIR / project / "manifest.py"
+    if not path.is_file():
+        sys.exit(f"no manifest at {path}")
+    spec = importlib.util.spec_from_file_location(f"manifest_{project}", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def list_projects() -> list[str]:
+    return sorted(
+        p.name for p in PROJECTS_DIR.iterdir() if p.is_dir() and (p / "manifest.py").is_file()
+    )
 
 
 def _get(path: str) -> dict:
-    req = urllib.request.Request(
-        f"{GRAFANA}{path}",
-        headers={"Authorization": _AUTH},
-    )
+    req = urllib.request.Request(f"{GRAFANA}{path}", headers={"Authorization": _auth_header()})
     with urllib.request.urlopen(req, timeout=15) as r:
         return json.load(r)
 
@@ -102,18 +88,10 @@ def wait_for_grafana(timeout: int = 180) -> None:
 
 
 def _is_v2_dashboard(dash: dict) -> bool:
-    """True for a dashboard.grafana.app/v2* resource (kind/spec shape), False for
-    classic v1 dashboard JSON. Mirrors verify-panels.py's helper of the same name."""
     return dash.get("kind") == "Dashboard" and "spec" in dash
 
 
 def _v2_grid_height(spec: dict) -> int | None:
-    """Render height for a schema-v2 AutoGridLayout dashboard (e.g. the fleet card
-    grid). Unlike classic panels, AutoGridLayout items have no fixed gridPos - the
-    row count depends on how many values the repeated variable resolves to, which
-    for a DatasourceVariable is only known by querying live datasources. Returns
-    None if the dashboard isn't an AutoGridLayout (falls back to classic parsing).
-    """
     layout = spec.get("layout", {})
     if layout.get("kind") != "AutoGridLayout":
         return None
@@ -145,13 +123,6 @@ def _v2_grid_height(spec: dict) -> int | None:
 
 
 def dashboard_render_height(uid: str) -> int:
-    """Return the pixel height needed to capture the full dashboard.
-
-    For classic v1 dashboards, finds the bottom edge of the lowest panel and
-    converts to pixels using Grafana's grid unit size plus a top-margin buffer.
-    For schema-v2 AutoGridLayout dashboards (no fixed panel positions), computes
-    row count from the repeated variable's resolved value count instead.
-    """
     try:
         dash = _get(f"/api/dashboards/uid/{uid}").get("dashboard", {})
         if _is_v2_dashboard(dash):
@@ -168,19 +139,183 @@ def dashboard_render_height(uid: str) -> int:
         return 1200
 
 
-def render_dashboard(uid: str, use_instance: bool, height: int, out_path: Path) -> bool:
-    """Fetch a rendered PNG via Grafana's image renderer and write it to out_path."""
+def resolve_server_value(uid: str, name: str) -> str:
+    try:
+        dash = _get(f"/api/dashboards/uid/{uid}").get("dashboard", {})
+        var = next(
+            (v for v in dash.get("templating", {}).get("list", []) if v.get("name") == "server"),
+            {},
+        )
+        ds, query = var.get("datasource"), var.get("query")
+        if not ds or not isinstance(query, str):
+            return name
+        body = json.dumps(
+            {"queries": [{"refId": "A", "datasource": ds, "rawSql": query, "format": "table"}]}
+        ).encode()
+        req = urllib.request.Request(
+            f"{GRAFANA}/api/ds/query",
+            data=body,
+            headers={"Authorization": _auth_header(), "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            frame = json.load(r)["results"]["A"]["frames"][0]
+        fields = [f["name"] for f in frame["schema"]["fields"]]
+        texts = frame["data"]["values"][fields.index("__text")]
+        values = frame["data"]["values"][fields.index("__value")]
+        return str(dict(zip(texts, values))[name])
+    except (urllib.error.URLError, KeyError, IndexError, ValueError, OSError):
+        return name
+
+
+def set_user_theme_preference(theme: str) -> None:
+    req = urllib.request.Request(
+        f"{GRAFANA}/api/user/preferences",
+        data=json.dumps({"theme": theme}).encode(),
+        headers={"Authorization": _auth_header(), "Content-Type": "application/json"},
+        method="PUT",
+    )
+    with urllib.request.urlopen(req, timeout=15) as r:
+        r.read()
+
+
+_PNG_SIG = b"\x89PNG\r\n\x1a\n"
+_CHANNELS_BY_COLOR_TYPE = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
+
+
+def _paeth(a: int, b: int, c: int) -> int:
+    p = a + b - c
+    pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+    if pa <= pb and pa <= pc:
+        return a
+    if pb <= pc:
+        return b
+    return c
+
+
+def _read_png_chunks(data: bytes) -> tuple[dict, bytes]:
+    ihdr: dict = {}
+    idat = bytearray()
+    pos = len(_PNG_SIG)
+    while pos < len(data):
+        length = struct.unpack(">I", data[pos : pos + 4])[0]
+        tag = data[pos + 4 : pos + 8]
+        chunk = data[pos + 8 : pos + 8 + length]
+        if tag == b"IHDR":
+            width, height, bit_depth, color_type, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
+            ihdr = {
+                "width": width,
+                "height": height,
+                "bit_depth": bit_depth,
+                "color_type": color_type,
+                "interlace": interlace,
+            }
+        elif tag == b"IDAT":
+            idat += chunk
+        elif tag == b"IEND":
+            break
+        pos += 12 + length
+    return ihdr, bytes(idat)
+
+
+def _png_chunk(tag: bytes, data: bytes) -> bytes:
+    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
+
+
+_BADGE_MARGIN_PX = 220
+_BLANK_COLOR_THRESHOLD = 12
+
+
+def _autocrop_png(path: Path, padding: int = 40, min_height: int = 300) -> None:
+    raw = path.read_bytes()
+    ihdr, idat = _read_png_chunks(raw)
+    if not ihdr or ihdr["bit_depth"] != 8 or ihdr["interlace"] != 0:
+        return
+    channels = _CHANNELS_BY_COLOR_TYPE.get(ihdr["color_type"])
+    if channels is None:
+        return
+
+    width, height = ihdr["width"], ihdr["height"]
+    stride = width * channels
+    filtered = zlib.decompress(idat)
+    if len(filtered) != height * (stride + 1):
+        return
+
+    rows = []
+    prev = bytearray(stride)
+    for y in range(height):
+        start = y * (stride + 1)
+        filter_type = filtered[start]
+        scan = filtered[start + 1 : start + 1 + stride]
+        recon = bytearray(stride)
+        for x in range(stride):
+            a = recon[x - channels] if x >= channels else 0
+            b = prev[x]
+            c = prev[x - channels] if x >= channels else 0
+            if filter_type == 0:
+                recon[x] = scan[x]
+            elif filter_type == 1:
+                recon[x] = (scan[x] + a) & 0xFF
+            elif filter_type == 2:
+                recon[x] = (scan[x] + b) & 0xFF
+            elif filter_type == 3:
+                recon[x] = (scan[x] + (a + b) // 2) & 0xFF
+            elif filter_type == 4:
+                recon[x] = (scan[x] + _paeth(a, b, c)) & 0xFF
+            else:
+                return
+        rows.append(bytes(recon))
+        prev = recon
+
+    compare_width = max(0, width - _BADGE_MARGIN_PX) or width
+    compare_len = compare_width * channels
+    last_content_row = None
+    for y in range(height - 1, -1, -1):
+        row = rows[y]
+        colors = {row[x * channels : (x + 1) * channels] for x in range(compare_width)}
+        if len(colors) > _BLANK_COLOR_THRESHOLD:
+            last_content_row = y
+            break
+    if last_content_row is None:
+        return
+
+    page_bg = rows[-1][:compare_len]
+    box_close_row = height - 1
+    for y in range(last_content_row + 1, height):
+        if rows[y][:compare_len] == page_bg:
+            box_close_row = y
+            break
+
+    crop_height = max(box_close_row + padding, min_height)
+    crop_height = min(crop_height, height)
+    if crop_height >= height:
+        return
+
+    cropped_filtered = filtered[: crop_height * (stride + 1)]
+    new_ihdr = struct.pack(">IIBBBBB", width, crop_height, ihdr["bit_depth"], ihdr["color_type"], 0, 0, 0)
+    new_png = (
+        _PNG_SIG
+        + _png_chunk(b"IHDR", new_ihdr)
+        + _png_chunk(b"IDAT", zlib.compress(cropped_filtered, 9))
+        + _png_chunk(b"IEND", b"")
+    )
+    path.write_bytes(new_png)
+
+
+def render_dashboard(
+    uid: str, var_server: str | None, height: int, out_path: Path, theme_param: str | None
+) -> bool:
     params = (
         f"orgId=1"
         f"&from={TIME_FROM}&to={TIME_TO}"
         f"&width={RENDER_WIDTH}&height={height}"
-        f"&theme=dark"
         f"&kiosk"
     )
-    if use_instance:
-        params += f"&var-instance={PRIMARY_DS}"
+    if theme_param:
+        params += f"&theme={theme_param}"
+    if var_server:
+        params += f"&var-server={var_server}"
     url = f"{GRAFANA}/render/d/{uid}?{params}"
-    req = urllib.request.Request(url, headers={"Authorization": _AUTH})
+    req = urllib.request.Request(url, headers={"Authorization": _auth_header()})
     try:
         with urllib.request.urlopen(req, timeout=180) as r:
             data = r.read()
@@ -193,43 +328,86 @@ def render_dashboard(uid: str, use_instance: bool, height: int, out_path: Path) 
         return False
 
     out_path.write_bytes(data)
+    _autocrop_png(out_path)
     return True
 
 
-def _card_html(title: str, rel_path: str, ok: bool) -> str:
+def _png_size(path: Path) -> tuple[int, int] | None:
+    try:
+        header = path.open("rb").read(24)
+    except OSError:
+        return None
+    if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    width, height = struct.unpack(">II", header[16:24])
+    return width, height
+
+
+def _card_html(title: str, rel_path: str, ok: bool, png_path: Path) -> str:
     if ok:
-        img = f'<img src="{rel_path}" alt="{title}" loading="lazy">'
+        dims = _png_size(png_path)
+        style = f' style="aspect-ratio:{dims[0]}/{dims[1]}"' if dims else ""
+        img = f'<img src="{rel_path}" alt="{title}" loading="lazy"{style}>'
     else:
         img = (
             '<div class="missing">'
             "Screenshot unavailable - renderer not configured or dashboard had no data."
             "</div>"
         )
-    return (
-        f'<div class="card">'
-        f'<div class="card-title">{title}</div>'
-        f"{img}"
-        f"</div>\n"
-    )
+    return f'<div class="card flow-item"><div class="card-title">{title}</div>{img}</div>\n'
 
 
-def write_index_html(results: list[tuple[str, str, str, bool]], stamp: str) -> None:
-    shots_rel = "screenshots"
-    groups: dict[str, list] = {}
+def write_project_index(
+    project: str, manifest: types.ModuleType, results: list[tuple[str, str, str, bool]], stamp: str
+) -> None:
+    shots_dir = PROJECTS_DIR / project / "screenshots"
+    flow_items = ""
+    current_group = None
     for uid, title, group, ok in results:
-        groups.setdefault(group, []).append((uid, title, ok))
+        if group != current_group:
+            flow_items += f'<div class="section-header flow-item">{group}</div>\n'
+            current_group = group
+        flow_items += _card_html(title, f"screenshots/{uid}.png", ok, shots_dir / f"{uid}.png")
 
-    sections = ""
-    for group, items in groups.items():
-        cards = "".join(
-            _card_html(title, f"{shots_rel}/{uid}.png", ok)
-            for uid, title, ok in items
-        )
-        sections += (
-            f'<section>\n'
-            f'<h2>{group}</h2>\n'
-            f'<div class="grid">{cards}</div>\n'
-            f'</section>\n'
+    html = f"""\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{manifest.TITLE} - Dashboard Gallery</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header>
+  <p><a href="../../index.html">&larr; all projects</a></p>
+  <h1>{manifest.TITLE}</h1>
+  <p>{manifest.DESCRIPTION}</p>
+  <p>Run the demo locally (<a href="{manifest.REPO_URL}">{manifest.REPO_URL}</a>):</p>
+  <div class="howto">{manifest.CLONE_SNIPPET.replace(chr(10), "<br>")}</div>
+</header>
+
+<section><div class="masonry">
+{flow_items}</div></section>
+
+<footer>Generated {stamp} from a live demo run.</footer>
+<script src="../../gallery.js" defer></script>
+</body>
+</html>
+"""
+    out_dir = PROJECTS_DIR / project
+    (out_dir / "index.html").write_text(html, encoding="utf-8")
+    print(f"Wrote {out_dir / 'index.html'}")
+
+
+def write_landing_index() -> None:
+    cards = ""
+    for project in list_projects():
+        manifest = load_manifest(project)
+        cards += (
+            f'<div class="card"><div class="card-title">'
+            f'<a href="projects/{project}/index.html">{manifest.TITLE}</a>'
+            f"</div><p>{manifest.DESCRIPTION}</p></div>\n"
         )
 
     html = f"""\
@@ -238,36 +416,26 @@ def write_index_html(results: list[tuple[str, str, str, bool]], stamp: str) -> N
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>eriksperfmon - Dashboard Gallery</title>
+<title>screenshot-gallery</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <h1>eriksperfmon</h1>
-  <p>
-    Grafana dashboards for
-    <a href="https://github.com/erikdarlingdata/PerformanceMonitor">Erik Darling's PerformanceMonitor</a>
-    (Full Edition). Screenshots from a demo running SQL Server 2017-2025 with a
-    synthetic workload: wait stats, blocking pairs, deadlocks, memory pressure etc.
-  </p>
-  <p>Run the full demo locally (Get it from GitHub - <a href="https://github.com/argpna/eriksperfmon">argpna/eriksperfmon</a>):</p>
-  <div class="howto">git clone https://github.com/argpna/eriksperfmon.git<br>cd eriksperfmon<br>cp .env.example .env &amp;&amp; docker compose up -d</div>
+  <h1>screenshot-gallery</h1>
+  <p>Static dashboard-screenshot galleries, one per project.</p>
 </header>
 
-{sections}
-
-<footer>Generated {stamp} from a live demo run.</footer>
+<section><div class="grid">{cards}</div></section>
 </body>
 </html>
 """
-    index_path = PAGES_DIR / "index.html"
-    index_path.write_text(html, encoding="utf-8")
-    print(f"Wrote {index_path}")
+    (REPO_ROOT / "index.html").write_text(html, encoding="utf-8")
+    print(f"Wrote {REPO_ROOT / 'index.html'}")
 
 
-def list_dashboards() -> None:
+def list_dashboards(manifest: types.ModuleType) -> None:
     groups: dict[str, list] = {}
-    for uid, title, group, _ in DASHBOARDS:
+    for uid, title, group, _ in manifest.DASHBOARDS:
         groups.setdefault(group, []).append((uid, title))
     for group, items in groups.items():
         print(f"\n{group}")
@@ -277,8 +445,16 @@ def list_dashboards() -> None:
 
 
 def main() -> None:
-    if os.environ.get("SCREENSHOT_LIST"):
-        list_dashboards()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--project", required=True, help="directory name under projects/")
+    parser.add_argument("--list", action="store_true", help="list dashboard UIDs and exit")
+    parser.add_argument("--uids", default="", help="comma-separated UID filter (default: all)")
+    args = parser.parse_args()
+
+    manifest = load_manifest(args.project)
+
+    if args.list:
+        list_dashboards(manifest)
         return
 
     if not ADMIN_PASS:
@@ -287,36 +463,48 @@ def main() -> None:
     wait_for_grafana()
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    shots_dir = PAGES_DIR / "screenshots"
+    shots_dir = PROJECTS_DIR / args.project / "screenshots"
     shots_dir.mkdir(parents=True, exist_ok=True)
 
-    targets = [d for d in DASHBOARDS if not _UID_FILTER or d[0] in _UID_FILTER]
+    is_preference_theme = THEME in PREFERENCE_THEMES
+    theme_param = None if is_preference_theme else THEME
+    if is_preference_theme:
+        set_user_theme_preference(THEME)
+
+    uid_filter = {u.strip() for u in args.uids.split(",") if u.strip()}
+    targets = [d for d in manifest.DASHBOARDS if not uid_filter or d[0] in uid_filter]
     print(f"\nRendering {len(targets)} dashboard(s)...")
-    rendered: dict[str, bool] = {}
-    for uid, title, group, use_instance in targets:
-        height = dashboard_render_height(uid)
-        print(f"  [{uid}]  height={height}px")
-        out = shots_dir / f"{uid}.png"
-        ok = render_dashboard(uid, use_instance, height, out)
-        print(f"    -> {'ok' if ok else 'FAILED'}")
-        rendered[uid] = ok
+    try:
+        for uid, title, group, use_server in targets:
+            height = dashboard_render_height(uid)
+            print(f"  [{uid}]  height={height}px")
+            out = shots_dir / f"{uid}.png"
+            if isinstance(use_server, str):
+                var_server = resolve_server_value(uid, use_server)
+            elif use_server:
+                var_server = SERVER_OVERRIDE or manifest.PRIMARY_SERVER
+            else:
+                var_server = None
+            ok = render_dashboard(uid, var_server, height, out, theme_param)
+            print(f"    -> {'ok' if ok else 'FAILED'}")
+    finally:
+        if is_preference_theme:
+            set_user_theme_preference("dark")
 
     results = []
-    for uid, title, group, _ in DASHBOARDS:
-        if uid in rendered:
-            ok = rendered[uid]
-        else:
-            ok = (shots_dir / f"{uid}.png").exists()
+    for uid, title, group, _ in manifest.DASHBOARDS:
+        ok = (shots_dir / f"{uid}.png").exists()
         results.append((uid, title, group, ok))
 
-    for uid, title, group in PAGE_SCREENSHOTS:
+    for uid, title, group in getattr(manifest, "PAGE_SCREENSHOTS", []):
         ok = (shots_dir / f"{uid}.png").exists()
         results.append((uid, title, group, ok))
 
     ok_count = sum(1 for _, _, _, ok in results if ok)
-    print(f"\n{ok_count}/{len(DASHBOARDS)} dashboards rendered successfully.")
+    print(f"\n{ok_count}/{len(manifest.DASHBOARDS)} dashboards rendered successfully.")
 
-    write_index_html(results, stamp)
+    write_project_index(args.project, manifest, results, stamp)
+    write_landing_index()
 
 
 if __name__ == "__main__":

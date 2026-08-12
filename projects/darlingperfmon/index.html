@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>darlingperfmon - Dashboard Gallery</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header>
+  <p><a href="../../index.html">&larr; all projects</a></p>
+  <h1>darlingperfmon</h1>
+  <p>Grafana dashboards for Erik Darling's <a href="https://github.com/erikdarlingdata/PerformanceMonitor">PerformanceMonitor</a>, Darling edition.</p>
+  <p>Run the demo locally (<a href="https://github.com/argpna/darlingperfmon">https://github.com/argpna/darlingperfmon</a>):</p>
+  <div class="howto">git clone https://github.com/argpna/darlingperfmon.git<br>cd darlingperfmon<br>cp .env.example .env && docker compose --profile darling up -d</div>
+</header>
+
+<section><div class="masonry">
+<div class="section-header flow-item">Overview</div>
+<div class="card flow-item"><div class="card-title">Fleet</div><img src="screenshots/darling-fleet.png" alt="Fleet" loading="lazy" style="aspect-ratio:1600/1198"></div>
+<div class="card flow-item"><div class="card-title">Overview</div><img src="screenshots/darling-overview.png" alt="Overview" loading="lazy" style="aspect-ratio:1600/2946"></div>
+<div class="card flow-item"><div class="card-title">Administration</div><img src="screenshots/darling-administration.png" alt="Administration" loading="lazy" style="aspect-ratio:1600/4278"></div>
+<div class="card flow-item"><div class="card-title">Collection Health</div><img src="screenshots/darling-collection-health.png" alt="Collection Health" loading="lazy" style="aspect-ratio:1600/1768"></div>
+<div class="card flow-item"><div class="card-title">Collection Log Detail</div><img src="screenshots/darling-collection-log-detail.png" alt="Collection Log Detail" loading="lazy" style="aspect-ratio:1600/810"></div>
+<div class="card flow-item"><div class="card-title">CPU, Memory & Sessions</div><img src="screenshots/darling-cpu-memory-sessions.png" alt="CPU, Memory & Sessions" loading="lazy" style="aspect-ratio:1600/4772"></div>
+<div class="card flow-item"><div class="card-title">Storage & tempdb</div><img src="screenshots/darling-storage-tempdb.png" alt="Storage & tempdb" loading="lazy" style="aspect-ratio:1600/1692"></div>
+<div class="card flow-item"><div class="card-title">System Events</div><img src="screenshots/darling-system-events.png" alt="System Events" loading="lazy" style="aspect-ratio:1600/7394"></div>
+<div class="card flow-item"><div class="card-title">Availability Groups</div><img src="screenshots/darling-availability-groups.png" alt="Availability Groups" loading="lazy" style="aspect-ratio:1600/770"></div>
+<div class="card flow-item"><div class="card-title">Availability Group Detail</div><img src="screenshots/darling-availability-group-detail.png" alt="Availability Group Detail" loading="lazy" style="aspect-ratio:1600/890"></div>
+<div class="section-header flow-item">Waits & Blocking</div>
+<div class="card flow-item"><div class="card-title">Wait Analysis</div><img src="screenshots/darling-wait-analysis.png" alt="Wait Analysis" loading="lazy" style="aspect-ratio:1600/1960"></div>
+<div class="card flow-item"><div class="card-title">Wait Drill-down</div><img src="screenshots/darling-wait-drill-down.png" alt="Wait Drill-down" loading="lazy" style="aspect-ratio:1600/730"></div>
+<div class="card flow-item"><div class="card-title">Blocking & Deadlocks</div><img src="screenshots/darling-blocking-deadlocks.png" alt="Blocking & Deadlocks" loading="lazy" style="aspect-ratio:1600/2834"></div>
+<div class="card flow-item"><div class="card-title">Deadlock Detail</div><img src="screenshots/darling-deadlock-detail.png" alt="Deadlock Detail" loading="lazy" style="aspect-ratio:1600/1008"></div>
+<div class="section-header flow-item">Queries</div>
+<div class="card flow-item"><div class="card-title">Queries</div><img src="screenshots/darling-queries.png" alt="Queries" loading="lazy" style="aspect-ratio:1600/6938"></div>
+<div class="card flow-item"><div class="card-title">Procedure History</div><img src="screenshots/darling-procedure-history.png" alt="Procedure History" loading="lazy" style="aspect-ratio:1600/1930"></div>
+<div class="card flow-item"><div class="card-title">Query Stats History</div><img src="screenshots/darling-query-stats-history.png" alt="Query Stats History" loading="lazy" style="aspect-ratio:1600/2150"></div>
+<div class="card flow-item"><div class="card-title">Query Store History</div><img src="screenshots/darling-query-store-history.png" alt="Query Store History" loading="lazy" style="aspect-ratio:1600/2150"></div>
+<div class="section-header flow-item">FinOps</div>
+<div class="card flow-item"><div class="card-title">Recommendations</div><img src="screenshots/darling-finops-recommendations.png" alt="Recommendations" loading="lazy" style="aspect-ratio:1600/850"></div>
+<div class="card flow-item"><div class="card-title">Utilization</div><img src="screenshots/darling-finops-utilization.png" alt="Utilization" loading="lazy" style="aspect-ratio:1600/2604"></div>
+<div class="card flow-item"><div class="card-title">Capacity Growth</div><img src="screenshots/darling-finops-capacity-growth.png" alt="Capacity Growth" loading="lazy" style="aspect-ratio:1600/1692"></div>
+<div class="card flow-item"><div class="card-title">Object Sizes</div><img src="screenshots/darling-finops-object-sizes.png" alt="Object Sizes" loading="lazy" style="aspect-ratio:1600/1008"></div>
+<div class="card flow-item"><div class="card-title">Index Usage</div><img src="screenshots/darling-finops-index-usage.png" alt="Index Usage" loading="lazy" style="aspect-ratio:1600/850"></div>
+<div class="card flow-item"><div class="card-title">Optimization / Indexing</div><img src="screenshots/darling-finops-optimization-indexing.png" alt="Optimization / Indexing" loading="lazy" style="aspect-ratio:1600/2756"></div>
+<div class="card flow-item"><div class="card-title">Workload Contention</div><img src="screenshots/darling-finops-workload-contention.png" alt="Workload Contention" loading="lazy" style="aspect-ratio:1600/2530"></div>
+<div class="card flow-item"><div class="card-title">Server Inventory</div><img src="screenshots/darling-finops-server-inventory.png" alt="Server Inventory" loading="lazy" style="aspect-ratio:1600/890"></div>
+<div class="section-header flow-item">Alerting</div>
+<div class="card flow-item"><div class="card-title">Alerting Rules</div><img src="screenshots/page-alert-rules.png" alt="Alerting Rules" loading="lazy" style="aspect-ratio:1917/785"></div>
+<div class="card flow-item"><div class="card-title">Active Notifications</div><img src="screenshots/page-active-notifications.png" alt="Active Notifications" loading="lazy" style="aspect-ratio:1916/580"></div>
+<div class="card flow-item"><div class="card-title">Contact Points</div><img src="screenshots/page-contact-points.png" alt="Contact Points" loading="lazy" style="aspect-ratio:1903/747"></div>
+<div class="card flow-item"><div class="card-title">Notification Policies</div><img src="screenshots/page-notification-policies.png" alt="Notification Policies" loading="lazy" style="aspect-ratio:1916/580"></div>
+</div></section>
+
+<footer>Generated 2026-08-12 from a live demo run.</footer>
+<script src="../../gallery.js" defer></script>
+</body>
+</html>

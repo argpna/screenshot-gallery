@@ -1,14 +1,6 @@
-# Overlay for the eriksperfmon main stack - adds the image renderer so Grafana
-# can serve /render/d/{uid} requests used by scripts/screenshot.py.
-#
-# Run together with the main compose file:
-#   docker compose -f ../eriksperfmon/docker-compose.yml -f docker-compose.yml up -d
-# or use capture.sh which handles the paths automatically.
-
 services:
   renderer:
     image: grafana/grafana-image-renderer:latest
-    container_name: perfmon-renderer
     environment:
       ENABLE_METRICS: "false"
       LOG_LEVEL: warn

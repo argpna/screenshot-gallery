@@ -45,22 +45,40 @@ section {
   border-bottom: 1px solid #1a1c23;
 }
 section:last-of-type { border-bottom: none; }
-section h2 {
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+.grid .card { flex: 1 1 320px; }
+
+.masonry {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.masonry.masonry-ready {
+  flex-direction: row;
+  align-items: flex-start;
+}
+.masonry-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.section-header {
   font-size: .75rem;
   text-transform: uppercase;
   letter-spacing: .12em;
   color: #6794a7;
-  margin: 0 0 1.5rem;
   font-weight: 600;
+  padding: .5rem .1rem;
 }
 
-.grid {
-  columns: 2;
-  column-gap: 1.25rem;
-}
 .card {
-  break-inside: avoid;
-  margin-bottom: 1.25rem;
   border: 1px solid #22252b;
   border-radius: 4px;
   overflow: hidden;
@@ -73,9 +91,18 @@ section h2 {
   background: #16181f;
   border-bottom: 1px solid #22252b;
 }
+.card-title a { color: inherit; text-decoration: underline; text-decoration-color: #454952; }
+.card-title a:hover { text-decoration-color: inherit; }
 .card img {
   width: 100%;
   display: block;
+}
+.card p {
+  padding: 0 1rem 1rem;
+  margin: .5rem 0 0;
+  font-size: .85rem;
+  line-height: 1.6;
+  color: #aaa;
 }
 .missing {
   padding: 2rem;
@@ -94,5 +121,4 @@ footer {
 
 @media (max-width: 800px) {
   header, section, footer { padding: 1.5rem; }
-  .grid { columns: 1; }
 }
